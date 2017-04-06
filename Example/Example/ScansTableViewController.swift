@@ -56,6 +56,11 @@ class ScansTableViewController: UIViewController {
 
     private func addNewScannedPeripheral(_ peripheral: ScannedPeripheral) {
         let mapped = peripheralsArray.map { $0.peripheral }
+        
+        guard  peripheral.peripheral.name == "Timeular ZEI"
+            else  { return }
+        
+        
         if let indx = mapped.index(of: peripheral.peripheral) {
             peripheralsArray[indx] = peripheral
         } else {

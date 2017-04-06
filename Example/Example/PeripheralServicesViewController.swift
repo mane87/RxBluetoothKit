@@ -11,9 +11,9 @@ import RxBluetoothKit
 import RxSwift
 
 class PeripheralServicesViewController: UIViewController {
-
+    
     private let disposeBag = DisposeBag()
-
+    
     @IBOutlet weak var servicesTableView: UITableView!
     @IBOutlet weak var activityIndicatorView: UIActivityIndicatorView! {
         didSet {
@@ -22,13 +22,13 @@ class PeripheralServicesViewController: UIViewController {
         }
     }
     @IBOutlet weak var connectionStateLabel: UILabel!
-
+    
     var scannedPeripheral: ScannedPeripheral!
     var manager: BluetoothManager!
     private var connectedPeripheral: Peripheral?
     fileprivate var servicesList: [Service] = []
     fileprivate let serviceCellId = "ServiceCell"
-
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         servicesTableView.delegate = self
@@ -36,8 +36,10 @@ class PeripheralServicesViewController: UIViewController {
         servicesTableView.estimatedRowHeight = 40.0
         servicesTableView.rowHeight = UITableViewAutomaticDimension
     }
-
+    
     override func viewWillAppear(_ animated: Bool) {
+        registerLocal(sender: self)
+        
         super.viewWillAppear(animated)
         guard scannedPeripheral != nil else { return }
         title = "Connecting"
@@ -55,26 +57,51 @@ class PeripheralServicesViewController: UIViewController {
         activityIndicatorView.isHidden = false
         activityIndicatorView.startAnimating()
     }
-
+    
     private func monitorDisconnection(for peripheral: Peripheral) {
+        print("Monitor disconnect")
         manager.monitorDisconnection(for: peripheral)
             .subscribe(onNext: { [weak self] (peripheral) in
-                let alert = UIAlertController(title: "Disconnected!", message: "Peripheral Disconnected", preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
-                self?.present(alert, animated: true, completion: nil)
-        }).addDisposableTo(disposeBag)
+                
+                self?.send(notificationText: "Disconnect from \(String(describing: peripheral.name))")
+                self?.connect(to: peripheral)
+                
+            }).addDisposableTo(disposeBag)
     }
-
+    
+    private func connect(to peripheral: Peripheral){
+        self.manager
+            .connect(peripheral)
+            .subscribe(onNext:
+                { peripheral in
+                    self.send(notificationText: "Reconnected to \(String(describing: peripheral.name))")
+            }).addDisposableTo(self.disposeBag)
+    }
+    
+    private func send(notificationText: String){
+        print(notificationText)
+        let notification = UILocalNotification()
+        notification.fireDate = Date()
+        notification.alertBody = notificationText
+        UIApplication.shared.scheduleLocalNotification(notification)
+    }
+    
+    private func registerLocal(sender: AnyObject) {
+        let notificationSettings = UIUserNotificationSettings(types: [UIUserNotificationType.alert, UIUserNotificationType.badge], categories: nil)
+        UIApplication.shared.registerUserNotificationSettings(notificationSettings)
+    }
+    
+    
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         guard let identifier = segue.identifier, let cell = sender as? UITableViewCell,
             identifier == "PresentCharacteristics" else { return }
         guard let characteristicsVc = segue.destination as? CharacteristicsController else { return }
-
+        
         if let indexPath = servicesTableView.indexPath(for: cell) {
             characteristicsVc.service = servicesList[indexPath.row]
         }
     }
-
+    
     private func downloadServices(for peripheral: Peripheral) {
         peripheral.discoverServices(nil)
             .subscribe(onNext: { services in
@@ -88,7 +115,7 @@ extension PeripheralServicesViewController: UITableViewDataSource, UITableViewDe
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return servicesList.count
     }
-
+    
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: serviceCellId, for: indexPath)
         let service = servicesList[indexPath.row]
@@ -97,7 +124,7 @@ extension PeripheralServicesViewController: UITableViewDataSource, UITableViewDe
         }
         return cell
     }
-
+    
     func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
         return UIView(frame: .zero)
     }
